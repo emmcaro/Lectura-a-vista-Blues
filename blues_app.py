@@ -8,19 +8,27 @@ from music21 import *
 
 # --- CONFIGURACIÓ DE L'APP ---
 st.set_page_config(page_title="Generador de Blues", layout="wide")
+
+# Forcem un estil visual perquè la partitura es vegi sempre bé (estil "paper")
+st.markdown("""
+    <style>
+    .stButton { margin-top: 0px; }
+    iframe { background-color: white; border-radius: 5px; }
+    </style>
+    """, unsafe_allow_html=True)
+
 st.title("🎸 Generador de Lectura de Blues")
-st.write("Clica el botó per generar un blues de 12 compassos basat en els teus motius.")
 
 # --- ESTAT DE LA SESSIÓ ---
 if 'xml_data' not in st.session_state:
     st.session_state.xml_data = None
 
-# --- VISUALITZADOR OSMD ---
+# --- VISUALITZADOR OSMD AMB SUPORT PER A MODE FOSC ---
 def mostrar_partitura(xml_bytes):
     xml_str = xml_bytes.decode('utf-8')
     xml_escapat = json.dumps(xml_str)
     html_code = f"""
-    <div id="osmdCanvas"></div>
+    <div id="osmdCanvas" style="background-color: white; padding: 10px; border-radius: 5px;"></div>
     <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
     <script>
       var osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmdCanvas", {{
@@ -30,7 +38,10 @@ def mostrar_partitura(xml_bytes):
         drawComposer: false, 
         drawPartNames: false,
         newSystemFromXML: true,
-        stretchLastSystemLine: true
+        stretchLastSystemLine: true,
+        coloringMode: 0, // Força el color estàndard (negre sobre blanc)
+        defaultColorNotehead: "#000000",
+        defaultColorStem: "#000000"
       }});
       osmd.load({xml_escapat}).then(function() {{
         osmd.render();
@@ -41,11 +52,10 @@ def mostrar_partitura(xml_bytes):
 
 # --- FUNCIÓ PRINCIPAL ---
 def generar_blues_inteligent():
-    # RUTA RELATIVA PER GITHUB/STREAMLIT
     arxiu_motius_nets = 'motius_nets.musicxml'
     
     if not os.path.exists(arxiu_motius_nets):
-        st.error(f"❌ No s'ha trobat el fitxer '{arxiu_motius_nets}' a GitHub.")
+        st.error(f"❌ No s'ha trobat el fitxer '{arxiu_motius_nets}'")
         return None
 
     partitura_motius = converter.parse(arxiu_motius_nets)
@@ -54,7 +64,6 @@ def generar_blues_inteligent():
     motius = []
     motiu_actual = []
 
-    # 1. Detecció de motius per silencis
     for compas in part_dreta_motius.getElementsByClass(stream.Measure):
         notes_i_silencis = compas.notesAndRests
         es_buit = all(e.isRest for e in notes_i_silencis) if notes_i_silencis else True
@@ -70,10 +79,8 @@ def generar_blues_inteligent():
     motius_2_compassos = [m for m in motius if len(m) == 2]
     
     if not motius_1_compas:
-        st.error("ERROR: No s'han detectat motius d'un compàs!")
         return None
 
-    # Filtre de Mi natural
     def te_mi_natural(compas):
         for n in compas.flatten().notes:
             if (n.isNote and n.pitch.name == 'E') or (n.isChord and any(p.name == 'E' for p in n.pitches)):
@@ -87,7 +94,6 @@ def generar_blues_inteligent():
     ma_dreta = stream.Part()
     ma_esquerra = stream.Part()
 
-    # --- FASE 1: MÀ DRETA ---
     compassos_md = [None] * 12
     motiu_pregunta = random.choice(motius_1_segurs_F if motius_1_segurs_F else motius_1_compas)
     motius_possibles_res = [m for m in motius_1_compas if m != motiu_pregunta]
@@ -112,7 +118,6 @@ def generar_blues_inteligent():
             else:
                 compassos_md[i] = random.choice(motius_1_compas)[0]
 
-    # Neteja de compassos i abocament a la Part
     for i in range(12):
         c_clon = copy.deepcopy(compassos_md[i])
         c_clon.number = i + 1
@@ -120,7 +125,6 @@ def generar_blues_inteligent():
             c_clon.remove(el)
         ma_dreta.append(c_clon)
 
-    # --- FASE 2: MÀ ESQUERRA ---
     comptador_semi = sum(1 for n in ma_dreta.flatten().notes if n.quarterLength <= 0.25)
     acords = ['C', 'C', 'C', 'C', 'F', 'F', 'C', 'C', 'G', 'F', 'C', 'C']
     estil = random.choice(['sense_7a', 'amb_7a'])
@@ -141,7 +145,6 @@ def generar_blues_inteligent():
                 m_esq.append(ch)
         ma_esquerra.append(m_esq)
 
-    # --- FASE 3: TRANSPOSICIÓ I FINAL ---
     ma_dreta[0].insert(0, clef.TrebleClef()); ma_dreta[0].insert(0, key.Key('C')); ma_dreta[0].insert(0, meter.TimeSignature('4/4'))
     ma_esquerra[0].insert(0, clef.BassClef()); ma_esquerra[0].insert(0, key.Key('C')); ma_esquerra[0].insert(0, meter.TimeSignature('4/4'))
     
@@ -154,19 +157,30 @@ def generar_blues_inteligent():
     score_final = partitura.transpose(mapa_ints[ton])
     score_final.metadata = metadata.Metadata(title='', composer='')
     
-    return score_final, ton
+    return score_final
 
-# --- UI STREAMLIT ---
-if st.button('Generar Nou Blues'):
-    with st.spinner('Generant la partitura...'):
-        resultat = generar_blues_inteligent()
-        if resultat:
-            score, ton = resultat
-            xml_path = score.write('musicxml')
-            with open(xml_path, 'rb') as f:
-                st.session_state.xml_data = f.read()
-            st.success(f"Blues generat en {ton} Major!")
+# --- UI STREAMLIT (Botons a la mateixa altura) ---
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    if st.button('🔄 Generar Nou Blues', use_container_width=True):
+        with st.spinner(''):
+            resultat = generar_blues_inteligent()
+            if resultat:
+                xml_path = resultat.write('musicxml')
+                with open(xml_path, 'rb') as f:
+                    st.session_state.xml_data = f.read()
+
+with col2:
+    if st.session_state.xml_data:
+        st.download_button(
+            label="📥 Descarregar MusicXML",
+            data=st.session_state.xml_data,
+            file_name="blues_lectura.musicxml",
+            mime="application/vnd.recordare.musicxml+xml",
+            use_container_width=True
+        )
 
 if st.session_state.xml_data:
-    st.download_button("📥 Descarregar MusicXML", data=st.session_state.xml_data, file_name="blues.musicxml")
+    st.divider()
     mostrar_partitura(st.session_state.xml_data)
