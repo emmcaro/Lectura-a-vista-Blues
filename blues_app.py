@@ -12,28 +12,24 @@ st.set_page_config(page_title="Generador de Blues", layout="wide")
 # CSS per eliminar marges superiors i forçar visibilitat en mode fosc
 st.markdown("""
     <style>
-    /* Eliminar el marge superior del contenidor de Streamlit */
     .block-container {
         padding-top: 1rem;
         padding-bottom: 0rem;
         padding-left: 5rem;
         padding-right: 5rem;
     }
-    /* Estil per als botons */
     .stButton { margin-top: 0px; }
-    /* Forçar fons blanc al visualitzador */
     iframe { background-color: white; border-radius: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
-# Títol amb icona de piano i el més amunt possible
 st.title("🎹 Generador de Lectura de Blues")
 
 # --- ESTAT DE LA SESSIÓ ---
 if 'xml_data' not in st.session_state:
     st.session_state.xml_data = None
 
-# --- VISUALITZADOR OSMD AMB SUPORT PER A MODE FOSC ---
+# --- VISUALITZADOR OSMD ---
 def mostrar_partitura(xml_bytes):
     xml_str = xml_bytes.decode('utf-8')
     xml_escapat = json.dumps(xml_str)
@@ -58,7 +54,7 @@ def mostrar_partitura(xml_bytes):
       }});
     </script>
     """
-    components.html(html_code, height=700, scrolling=True)
+    components.html(html_code, height=900, scrolling=True)
 
 # --- FUNCIÓ PRINCIPAL ---
 def generar_blues_inteligent():
@@ -133,6 +129,11 @@ def generar_blues_inteligent():
         c_clon.number = i + 1
         for el in c_clon.getElementsByClass(['Clef', 'TimeSignature', 'KeySignature', 'Barline']):
             c_clon.remove(el)
+        
+        # --- SALT DE LÍNIA (SYSTEM BREAK) ---
+        if i in [4, 8]:  # Després del 4t i el 8è compàs
+            c_clon.insert(0, layout.SystemLayout(isNew=True))
+            
         ma_dreta.append(c_clon)
 
     comptador_semi = sum(1 for n in ma_dreta.flatten().notes if n.quarterLength <= 0.25)
@@ -142,7 +143,7 @@ def generar_blues_inteligent():
     
     patrons = {
         'sense_7a': {'C': ['C3 G3', 'C3 A3'], 'F': ['F2 C3', 'F2 D3'], 'G': ['G2 D3', 'G2 E3']},
-        'amb_7a': {'C': ['C3 G3', 'C3 A3', 'C3 B-3', 'C3 A3'], 'F': ['F2 C3', 'F2 D3', 'F2 E-3', 'F2 D3'], 'G': ['G2 D3', 'G2 E3', 'G2 F3', 'G2 E3']}
+        'amb_7a': {'C': ['C3 G3', 'C3 A3', 'C3 B-3', 'C3 A3'], 'F': ['F2 C3', 'F2 D3'], 'F2 E-3', 'F2 D3'], 'G': ['G2 D3', 'G2 E3', 'G2 F3', 'G2 E3']}
     }
 
     for i, ac in enumerate(acords):
@@ -153,6 +154,11 @@ def generar_blues_inteligent():
                 if m_esq.quarterLength >= 4.0: break
                 ch = chord.Chord(n_txt.split(), quarterLength=durada)
                 m_esq.append(ch)
+        
+        # Salt de línia també a la mà esquerra per coherència
+        if i in [4, 8]:
+            m_esq.insert(0, layout.SystemLayout(isNew=True))
+            
         ma_esquerra.append(m_esq)
 
     ma_dreta[0].insert(0, clef.TrebleClef()); ma_dreta[0].insert(0, key.Key('C')); ma_dreta[0].insert(0, meter.TimeSignature('4/4'))
@@ -169,7 +175,7 @@ def generar_blues_inteligent():
     
     return score_final
 
-# --- UI STREAMLIT (Alineada al capdamunt) ---
+# --- UI STREAMLIT ---
 col1, col2 = st.columns([1, 1])
 
 with col1:
