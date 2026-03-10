@@ -4,6 +4,7 @@ import json
 import os
 import random
 import copy
+import re
 from music21 import *
 
 # --- CONFIGURACIÓ DE L'APP ---
@@ -29,23 +30,9 @@ st.title("🎹 Generador de Lectura de Blues")
 if 'xml_data' not in st.session_state:
     st.session_state.xml_data = None
 
-# --- VISUALITZADOR OSMD AMB ZOOM FORÇAT AL 90% I LÍNIES FORÇADES ---
+# --- VISUALITZADOR OSMD AMB ZOOM FORÇAT AL 90% ---
 def mostrar_partitura(xml_bytes):
     xml_str = xml_bytes.decode('utf-8')
-    
-    # --- HACK INFAL·LIBLE PER CONNECTAR LES LÍNIES DE COMPÀS ---
-    # Si music21 ha ignorat la connexió, la injectem directament al MusicXML
-    if '<part-group' in xml_str:
-        if '<group-barline>no</group-barline>' in xml_str:
-            xml_str = xml_str.replace('<group-barline>no</group-barline>', '<group-barline>yes</group-barline>')
-        elif '<group-barline>' not in xml_str:
-            xml_str = xml_str.replace('<group-symbol>brace</group-symbol>', '<group-symbol>brace</group-symbol>\n      <group-barline>yes</group-barline>')
-    else:
-        # Si per algun motiu ha esborrat tot el grup, el reconstruïm sencer
-        xml_str = xml_str.replace('<part-list>', '<part-list>\n    <part-group type="start" number="1">\n      <group-symbol>brace</group-symbol>\n      <group-barline>yes</group-barline>\n    </part-group>')
-        xml_str = xml_str.replace('</part-list>', '    <part-group type="stop" number="1"/>\n  </part-list>')
-    # -----------------------------------------------------------
-
     xml_escapat = json.dumps(xml_str)
     
     html_code = f"""
@@ -203,9 +190,9 @@ def generar_blues_inteligent():
     score_final = partitura.transpose(mapa_ints[ton])
     score_final.metadata = metadata.Metadata(title='', composer='')
     
-    # AGRUPAR EN PIANO 
+    # Encara que injectarem el codi manualment després, deixem l'agrupament de music21 per si de cas
     parts_final = list(score_final.getElementsByClass(stream.Part))
-    grup_piano = layout.StaffGroup(parts_final, name='Piano', symbol='brace', barTogether='yes')
+    grup_piano = layout.StaffGroup(parts_final, name='', symbol='brace', barTogether='yes')
     score_final.insert(0, grup_piano)
 
     return score_final
@@ -217,8 +204,32 @@ with col1:
         res = generar_blues_inteligent()
         if res:
             xml_p = res.write('musicxml')
-            with open(xml_p, 'rb') as f:
-                st.session_state.xml_data = f.read()
+            
+            # --- HACK DEFINITIU AL CODI FONT DEL MUSICXML ---
+            with open(xml_p, 'r', encoding='utf-8') as f:
+                xml_str = f.read()
+                
+            # Agafem els IDs de les dues parts generades
+            parts_ids = re.findall(r'<score-part id="([^"]+)">', xml_str)
+            if len(parts_ids) >= 2:
+                id1, id2 = parts_ids[0], parts_ids[1]
+                
+                # Reescriptura radical i forçada del bloc de llista de parts
+                nova_part_list = f"""  <part-list>
+    <part-group type="start" number="1">
+      <group-symbol>brace</group-symbol>
+      <group-barline>yes</group-barline>
+    </part-group>
+    <score-part id="{id1}"><part-name></part-name></score-part>
+    <score-part id="{id2}"><part-name></part-name></score-part>
+    <part-group type="stop" number="1"/>
+  </part-list>"""
+                
+                # Substituïm la configuració nativa per la nostra forçada
+                xml_str = re.sub(r'<part-list>.*?</part-list>', nova_part_list, xml_str, flags=re.DOTALL)
+            
+            # Ho guardem a la sessió (afectarà tant al visualitzador com al botó de descàrrega)
+            st.session_state.xml_data = xml_str.encode('utf-8')
 
 with col2:
     if st.session_state.xml_data:
