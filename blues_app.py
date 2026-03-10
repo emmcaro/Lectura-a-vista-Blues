@@ -176,17 +176,20 @@ def generar_blues_inteligent():
     ma_dreta.getElementsByClass(stream.Measure)[-1].rightBarline = bar.Barline('final')
     ma_esquerra.getElementsByClass(stream.Measure)[-1].rightBarline = bar.Barline('final')
 
-    # Agrupar en un pentagrama de piano (claudàtor i línies de compàs connectades)
-    grup_piano = layout.StaffGroup([ma_dreta, ma_esquerra], name='', symbol='brace', barTogether=True)
-
     partitura.insert(0, ma_dreta)
     partitura.insert(0, ma_esquerra)
-    partitura.insert(0, grup_piano)
 
+    # Transposar PRIMER (així evitem que esborri els grups visuals)
     mapa_ints = {'C': 'P1', 'G': 'P-4', 'D': 'M2', 'A': 'm-3', 'F': 'P4'}
     ton = random.choice(list(mapa_ints.keys()))
     score_final = partitura.transpose(mapa_ints[ton])
     score_final.metadata = metadata.Metadata(title='', composer='')
+    
+    # AGRUPAR EN PIANO DESPRÉS DE LA TRANSPOSICIÓ (Línies de compàs connectades i claudàtor)
+    parts_final = list(score_final.parts)
+    grup_piano = layout.StaffGroup(parts_final, name='', symbol='brace', barTogether=True)
+    score_final.insert(0, grup_piano)
+
     return score_final
 
 # --- UI STREAMLIT ---
