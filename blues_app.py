@@ -29,12 +29,16 @@ st.title("🎹 Generador de Lectura de Blues")
 if 'xml_data' not in st.session_state:
     st.session_state.xml_data = None
 
-# --- VISUALITZADOR OSMD AMB ZOOM AL 90% ---
+# --- VISUALITZADOR OSMD AMB ZOOM FORÇAT AL 90% ---
 def mostrar_partitura(xml_bytes):
     xml_str = xml_bytes.decode('utf-8')
     xml_escapat = json.dumps(xml_str)
+    
+    # Afegim CSS inline per forçar la reducció d'escala
     html_code = f"""
-    <div id="osmdCanvas" style="background-color: white; padding: 10px; border-radius: 5px;"></div>
+    <div style="width: 100%; display: flex; justify-content: center;">
+        <div id="osmdCanvas" style="background-color: white; padding: 10px; border-radius: 5px; transform: scale(0.9); transform-origin: top center; width: 111.11%;"></div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
     <script>
       var osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmdCanvas", {{
@@ -50,12 +54,12 @@ def mostrar_partitura(xml_bytes):
         defaultColorStem: "#000000"
       }});
       osmd.load({xml_escapat}).then(function() {{
-        osmd.zoom = 0.9; // Encongeix la partitura un 10%
+        osmd.zoom = 0.9;
         osmd.render();
       }});
     </script>
     """
-    components.html(html_code, height=900, scrolling=True)
+    components.html(html_code, height=850, scrolling=True)
 
 # --- FUNCIÓ PRINCIPAL ---
 def generar_blues_inteligent():
