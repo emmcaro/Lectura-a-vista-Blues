@@ -9,14 +9,14 @@ from music21 import *
 # --- CONFIGURACIÓ DE L'APP ---
 st.set_page_config(page_title="Generador de Blues", layout="wide")
 
-# CSS per eliminar marges superiors i forçar visibilitat de la partitura
+# CSS per eliminar marges superiors i APROFITAR L'AMPLADA als laterals
 st.markdown("""
     <style>
     .block-container {
         padding-top: 1rem;
         padding-bottom: 0rem;
-        padding-left: 5rem;
-        padding-right: 5rem;
+        padding-left: 1.5rem;  /* Abans estava a 5rem, ara molt més estret */
+        padding-right: 1.5rem; /* Abans estava a 5rem, ara molt més estret */
     }
     .stButton { margin-top: 0px; }
     iframe { background-color: white; border-radius: 5px; }
@@ -34,7 +34,7 @@ def mostrar_partitura(xml_bytes):
     xml_str = xml_bytes.decode('utf-8')
     xml_escapat = json.dumps(xml_str)
     
-    # Afegim CSS inline per forçar la reducció d'escala
+    # Afegim CSS inline per forçar la reducció d'escala i estirar a l'amplada
     html_code = f"""
     <div style="width: 100%; display: flex; justify-content: center;">
         <div id="osmdCanvas" style="background-color: white; padding: 10px; border-radius: 5px; transform: scale(0.9); transform-origin: top center; width: 111.11%;"></div>
