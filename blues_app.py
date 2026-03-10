@@ -44,16 +44,19 @@ def mostrar_partitura(xml_str):
         stretchLastSystemLine: true
       }});
       
+      // CONFIGURACIÓ DE MIDA I FONTS
+      osmd.EngravingRules.DefaultFontSize = 14; 
+      osmd.EngravingRules.StaffLineColor = "#222222";
       osmd.EngravingRules.RenderBarLinesAcrossStaves = true;
       osmd.EngravingRules.StavesConnectorsSpacingAcrossStaves = true;
       
       osmd.load({xml_escapat}).then(function() {{
-        osmd.zoom = 1.0;
+        osmd.zoom = 0.85; // Reduïm la mida general
         osmd.render();
       }});
     </script>
     """
-    components.html(html_code, height=1000, scrolling=True)
+    components.html(html_code, height=900, scrolling=True)
 
 def generar_blues():
     arxiu = 'motius_nets.musicxml'
@@ -73,7 +76,6 @@ def generar_blues():
     m1 = [m for m in motius_llista if len(m) == 1]
 
     score = stream.Score()
-    # Metadades completament buides per evitar "Music21"
     score.metadata = metadata.Metadata(title='', composer='')
     
     md = stream.Part(id='P1')
@@ -108,20 +110,14 @@ def generar_blues():
     piano_group = layout.StaffGroup([md, me], symbol='brace', name='', barTogether='yes')
     score.insert(0, piano_group)
 
-    # Generar XML i netejar rastres de software
     xml_data = score.write('musicxml')
     with open(xml_data, 'r', encoding='utf-8') as f:
         xml_str = f.read()
     
-    # ELIMINAR AUTORIA I SOFTWARE
+    # NETEJA TOTAL D'AUTORIA
     xml_str = re.sub(r'<software>.*?</software>', '<software></software>', xml_str)
     xml_str = re.sub(r'<encoding-description>.*?</encoding-description>', '', xml_str, flags=re.DOTALL)
     xml_str = re.sub(r'<creator type="composer">.*?</creator>', '', xml_str)
-    
-    # Re-injectar el fix de les barres (per si un cas algun dia el visor decideix fer-te cas)
-    if '<group-barline>' not in xml_str:
-        xml_str = xml_str.replace('<group-symbol>brace</group-symbol>', 
-                                  '<group-symbol>brace</group-symbol>\n      <group-barline>yes</group-barline>')
     
     return xml_str
 
