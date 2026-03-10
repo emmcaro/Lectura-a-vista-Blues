@@ -29,12 +29,25 @@ st.title("🎹 Generador de Lectura de Blues")
 if 'xml_data' not in st.session_state:
     st.session_state.xml_data = None
 
-# --- VISUALITZADOR OSMD AMB ZOOM FORÇAT AL 90% ---
+# --- VISUALITZADOR OSMD AMB ZOOM FORÇAT AL 90% I LÍNIES FORÇADES ---
 def mostrar_partitura(xml_bytes):
     xml_str = xml_bytes.decode('utf-8')
+    
+    # --- HACK INFAL·LIBLE PER CONNECTAR LES LÍNIES DE COMPÀS ---
+    # Si music21 ha ignorat la connexió, la injectem directament al MusicXML
+    if '<part-group' in xml_str:
+        if '<group-barline>no</group-barline>' in xml_str:
+            xml_str = xml_str.replace('<group-barline>no</group-barline>', '<group-barline>yes</group-barline>')
+        elif '<group-barline>' not in xml_str:
+            xml_str = xml_str.replace('<group-symbol>brace</group-symbol>', '<group-symbol>brace</group-symbol>\n      <group-barline>yes</group-barline>')
+    else:
+        # Si per algun motiu ha esborrat tot el grup, el reconstruïm sencer
+        xml_str = xml_str.replace('<part-list>', '<part-list>\n    <part-group type="start" number="1">\n      <group-symbol>brace</group-symbol>\n      <group-barline>yes</group-barline>\n    </part-group>')
+        xml_str = xml_str.replace('</part-list>', '    <part-group type="stop" number="1"/>\n  </part-list>')
+    # -----------------------------------------------------------
+
     xml_escapat = json.dumps(xml_str)
     
-    # Afegim CSS inline per forçar la reducció d'escala i estirar a l'amplada
     html_code = f"""
     <div style="width: 100%; display: flex; justify-content: center;">
         <div id="osmdCanvas" style="background-color: white; padding: 10px; border-radius: 5px; transform: scale(0.9); transform-origin: top center; width: 111.11%;"></div>
@@ -103,7 +116,6 @@ def generar_blues_inteligent():
 
     partitura = stream.Score()
     
-    # ASSIGNEM IDs PERQUÈ L'AGRUPAMENT FUNCIONI BÉ AL MUSICXML
     ma_dreta = stream.Part(id='Part1')
     ma_esquerra = stream.Part(id='Part2')
 
@@ -185,14 +197,13 @@ def generar_blues_inteligent():
     partitura.insert(0, ma_dreta)
     partitura.insert(0, ma_esquerra)
 
-    # Transposar PRIMER (així evitem que esborri els grups visuals)
+    # Transposar
     mapa_ints = {'C': 'P1', 'G': 'P-4', 'D': 'M2', 'A': 'm-3', 'F': 'P4'}
     ton = random.choice(list(mapa_ints.keys()))
     score_final = partitura.transpose(mapa_ints[ton])
     score_final.metadata = metadata.Metadata(title='', composer='')
     
-    # AGRUPAR EN PIANO DESPRÉS DE LA TRANSPOSICIÓ 
-    # (Forcem l'agrupament amb nom i barTogether='yes')
+    # AGRUPAR EN PIANO 
     parts_final = list(score_final.getElementsByClass(stream.Part))
     grup_piano = layout.StaffGroup(parts_final, name='Piano', symbol='brace', barTogether='yes')
     score_final.insert(0, grup_piano)
