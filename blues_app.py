@@ -29,7 +29,7 @@ st.title("🎹 Generador de Lectura de Blues")
 if 'xml_data' not in st.session_state:
     st.session_state.xml_data = None
 
-# --- VISUALITZADOR OSMD CORREGIT ---
+# --- VISUALITZADOR OSMD AMB ZOOM AL 90% ---
 def mostrar_partitura(xml_bytes):
     xml_str = xml_bytes.decode('utf-8')
     xml_escapat = json.dumps(xml_str)
@@ -50,6 +50,7 @@ def mostrar_partitura(xml_bytes):
         defaultColorStem: "#000000"
       }});
       osmd.load({xml_escapat}).then(function() {{
+        osmd.zoom = 0.9; // Encongeix la partitura un 10%
         osmd.render();
       }});
     </script>
@@ -167,11 +168,20 @@ def generar_blues_inteligent():
             m_esq.insert(0, layout.SystemLayout(isNew=True))
         ma_esquerra.append(m_esq)
 
+    # Neteja de compassos i afegit de claus, compàs i armadura
     ma_dreta[0].insert(0, clef.TrebleClef()); ma_dreta[0].insert(0, key.Key('C')); ma_dreta[0].insert(0, meter.TimeSignature('4/4'))
     ma_esquerra[0].insert(0, clef.BassClef()); ma_esquerra[0].insert(0, key.Key('C')); ma_esquerra[0].insert(0, meter.TimeSignature('4/4'))
     
+    # Afegir doble barra de final
+    ma_dreta.getElementsByClass(stream.Measure)[-1].rightBarline = bar.Barline('final')
+    ma_esquerra.getElementsByClass(stream.Measure)[-1].rightBarline = bar.Barline('final')
+
+    # Agrupar en un pentagrama de piano (claudàtor i línies de compàs connectades)
+    grup_piano = layout.StaffGroup([ma_dreta, ma_esquerra], name='', symbol='brace', barTogether=True)
+
     partitura.insert(0, ma_dreta)
     partitura.insert(0, ma_esquerra)
+    partitura.insert(0, grup_piano)
 
     mapa_ints = {'C': 'P1', 'G': 'P-4', 'D': 'M2', 'A': 'm-3', 'F': 'P4'}
     ton = random.choice(list(mapa_ints.keys()))
