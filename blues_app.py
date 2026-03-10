@@ -4,7 +4,6 @@ import json
 import os
 import random
 import copy
-import re
 from music21 import *
 
 # --- CONFIGURACIÓ DE L'APP ---
@@ -12,150 +11,128 @@ st.set_page_config(page_title="Generador de Blues", layout="wide")
 
 st.markdown("""
     <style>
-    .block-container {
-        padding-top: 1rem;
-        padding-bottom: 0rem;
-        padding-left: 1.5rem;
-        padding-right: 1.5rem;
-    }
-    iframe { background-color: white; border-radius: 5px; }
+    .block-container { padding-top: 1rem; padding-left: 1.5rem; padding-right: 1.5rem; }
+    iframe { background-color: white; border: 1px solid #ddd; border-radius: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🎹 Generador de Lectura de Blues")
 
-# Inicialitzem la sessió com a text buit per evitar errors de tipus
+# Inicialitzem la sessió sempre com a string
 if 'xml_data' not in st.session_state:
     st.session_state.xml_data = ""
 
-# --- VISUALITZADOR AMB CORRECCIÓ DE TIPUS (BYTES TO STR) ---
-def mostrar_partitura(xml_input):
-    # Si per algun motiu rebem bytes, els decodifiquem a string
-    if isinstance(xml_input, bytes):
-        xml_str = xml_input.decode('utf-8')
-    else:
-        xml_str = str(xml_input)
+def mostrar_partitura(xml_str):
+    if not xml_str:
+        return
     
     xml_escapat = json.dumps(xml_str)
     
     html_code = f"""
-    <div style="width: 100%; display: flex; justify-content: center;">
-        <div id="osmdCanvas" style="background-color: white; padding: 10px; border-radius: 5px; transform: scale(0.9); transform-origin: top center; width: 111.11%;"></div>
-    </div>
+    <div id="osmdCanvas" style="width: 100%; background-color: white;"></div>
     <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
     <script>
       var osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmdCanvas", {{
         autoResize: true,
         backend: "svg",
         drawTitle: false,
-        drawComposer: false, 
         drawPartNames: false,
         newSystemFromXML: true,
         stretchLastSystemLine: true
       }});
       
-      // CONFIGURACIÓ CRÍTICA PER UNIR PENTAGRAMES
-      osmd.EngravingRules.RenderBarLinesAcrossStaves = true; 
+      // CONFIGURACIÓ PER CONNECTAR LES BARRES DE COMPÀS
+      osmd.EngravingRules.RenderBarLinesAcrossStaves = true;
       osmd.EngravingRules.StavesConnectorsSpacingAcrossStaves = true;
-      
+      osmd.EngravingRules.ManageReversedGroupBracketSystemLines = true;
+
       osmd.load({xml_escapat}).then(function() {{
         osmd.zoom = 0.9;
         osmd.render();
+      }}).catch(function(err) {{
+        document.getElementById("osmdCanvas").innerHTML = "<p style='color:red;'>Error carregant partitura: " + err + "</p>";
       }});
     </script>
     """
-    components.html(html_code, height=850, scrolling=True)
+    components.html(html_code, height=900, scrolling=True)
 
-def generar_blues_inteligent():
-    arxiu_motius_nets = 'motius_nets.musicxml'
-    if not os.path.exists(arxiu_motius_nets):
-        st.error(f"❌ No s'ha trobat '{arxiu_motius_nets}'")
-        return None
+def generar_blues():
+    arxiu = 'motius_nets.musicxml'
+    if not os.path.exists(arxiu):
+        st.error(f"No trobo l'arxiu {arxiu}")
+        return ""
 
-    try:
-        partitura_motius = converter.parse(arxiu_motius_nets)
-        part_dreta_motius = partitura_motius.getElementsByClass(stream.Part)[0]
+    # Carregar i processar motius
+    score_motius = converter.parse(arxiu)
+    motius_raw = []
+    temp = []
+    for c in score_motius.parts[0].getElementsByClass(stream.Measure):
+        if all(e.isRest for e in c.notesAndRests) if c.notesAndRests else True:
+            if temp: motius_raw.append(temp); temp = []
+        else: temp.append(c)
+    if temp: motius_raw.append(temp)
+
+    m1 = [m for m in motius_raw if len(m) == 1]
+    m2 = [m for m in motius_raw if len(m) == 2]
+
+    # Construcció de la partitura
+    s = stream.Score()
+    md = stream.Part(id='P1')
+    me = stream.Part(id='P2')
+
+    # Generar 12 compassos (simplificat per estabilitat)
+    m_preg = random.choice(m1)
+    m_resp = random.choice(m1)
+    
+    for i in range(12):
+        # Mà Dreta
+        if i in [0, 1, 4, 5]: c_font = m_preg[0]
+        elif i in [2, 3, 6, 7]: c_font = m_resp[0]
+        else: c_font = random.choice(m1)[0]
         
-        motius = []
-        motiu_actual = []
-        for compas in part_dreta_motius.getElementsByClass(stream.Measure):
-            if all(e.isRest for e in compas.notesAndRests) if compas.notesAndRests else True:
-                if motiu_actual: motius.append(motiu_actual); motiu_actual = []
-            else: motiu_actual.append(compas)
-        if motiu_actual: motius.append(motiu_actual)
-            
-        motius_1 = [m for m in motius if len(m) == 1]
-        motius_2 = [m for m in motius if len(m) == 2]
+        c_md = copy.deepcopy(c_font)
+        c_md.number = i + 1
+        for el in c_md.getElementsByClass(['Clef', 'TimeSignature', 'KeySignature']): c_md.remove(el)
+        if i in [4, 8]: c_md.insert(0, layout.SystemLayout(isNew=True))
+        md.append(c_md)
 
-        def te_mi(c):
-            return any((n.isNote and n.pitch.name == 'E') or (n.isChord and any(p.name == 'E' for p in n.pitches)) for n in c.flatten().notes)
+        # Mà Esquerra (Walking Bass bàsic)
+        c_me = stream.Measure(number=i+1)
+        acord = ['C', 'C', 'C', 'C', 'F', 'F', 'C', 'C', 'G', 'F', 'C', 'C'][i]
+        pitches = {'C':['C3', 'E3', 'G3', 'A3'], 'F':['F2', 'A2', 'C3', 'D3'], 'G':['G2', 'B2', 'D3', 'E3']}[acord]
+        for p in pitches: c_me.append(note.Note(p, quarterLength=1.0))
+        if i in [4, 8]: c_me.insert(0, layout.SystemLayout(isNew=True))
+        me.append(c_me)
 
-        m1_segurs = [m for m in motius_1 if not te_mi(m[0])]
-        
-        partitura = stream.Score()
-        md = stream.Part(id='P1'); me = stream.Part(id='P2')
+    # Info inicial
+    md[0].insert(0, clef.TrebleClef()); md[0].insert(0, meter.TimeSignature('4/4'))
+    me[0].insert(0, clef.BassClef()); me[0].insert(0, meter.TimeSignature('4/4'))
+    md[-1].rightBarline = me[-1].rightBarline = bar.Barline('final')
 
-        c_md = [None] * 12
-        preg = random.choice(m1_segurs if m1_segurs else motius_1)
-        res = random.choice([m for m in motius_1 if m != preg])
-        c_md[0] = c_md[4] = preg[0]
-        c_md[2] = c_md[6] = res[0]
-        
-        if motius_2:
-            m_ll = random.choice([m for m in motius_2 if not te_mi(m[1])])
-            c_md[8], c_md[9] = m_ll[0], m_ll[1]
+    s.insert(0, md)
+    s.insert(0, me)
 
-        for i in range(12):
-            if c_md[i] is None:
-                c_md[i] = random.choice(m1_segurs if i in [5, 9] else motius_1)[0]
-            
-            clon = copy.deepcopy(c_md[i])
-            clon.number = i + 1
-            for el in clon.getElementsByClass(['Clef', 'TimeSignature', 'KeySignature']): clon.remove(el)
-            if i in [4, 8]: clon.insert(0, layout.SystemLayout(isNew=True))
-            md.append(clon)
+    # Agrupament Piano
+    staff_group = layout.StaffGroup([md, me], symbol='brace', barTogether='yes')
+    s.insert(0, staff_group)
 
-        acords = ['C', 'C', 'C', 'C', 'F', 'F', 'C', 'C', 'G', 'F', 'C', 'C']
-        for i, ac in enumerate(acords):
-            m = stream.Measure(number=i+1)
-            p = {'C':['C3 G3','C3 A3'], 'F':['F2 C3','F2 D3'], 'G':['G2 D3','G2 E3']}[ac]
-            for _ in range(4): m.append(chord.Chord(p[0].split(), quarterLength=0.5)); m.append(chord.Chord(p[1].split(), quarterLength=0.5))
-            if i in [4, 8]: m.insert(0, layout.SystemLayout(isNew=True))
-            me.append(m)
+    # Transposició i exportació a string
+    ton = random.choice(['C', 'G', 'F', 'D'])
+    s_final = s.transpose({'C':0, 'G':7, 'F':5, 'D':2}[ton])
+    
+    # Convertir a MusicXML (text)
+    return s_final.write('musicxml').decode('utf-8') if isinstance(s_final.write('musicxml'), bytes) else open(s_final.write('musicxml')).read()
 
-        md[0].insert(0, clef.TrebleClef()); md[0].insert(0, key.Key('C')); md[0].insert(0, meter.TimeSignature('4/4'))
-        me[0].insert(0, clef.BassClef()); me[0].insert(0, key.Key('C')); me[0].insert(0, meter.TimeSignature('4/4'))
-        md[-1].rightBarline = me[-1].rightBarline = bar.Barline('final')
+# --- INTERFÍCIE ---
+col1, col2 = st.columns(2)
+with col1:
+    if st.button('🔄 Generar Blues', use_container_width=True):
+        xml_result = generar_blues()
+        st.session_state.xml_data = xml_result
 
-        partitura.insert(0, md); partitura.insert(0, me)
-        ton = random.choice(['C', 'G', 'D', 'F'])
-        score_f = partitura.transpose({'C':'P1','G':'P-4','D':'M2','F':'P4'}[ton])
-        
-        grup = layout.StaffGroup(list(score_f.parts), symbol='brace', barTogether='yes')
-        score_f.insert(0, grup)
-        return score_f
-    except Exception as e:
-        st.error(f"Error generant la música: {e}")
-        return None
-
-# --- UI ---
-c1, c2 = st.columns(2)
-with c1:
-    if st.button('🔄 Generar Nou Blues', use_container_width=True):
-        res = generar_blues_inteligent()
-        if res:
-            xml_out = res.write('musicxml')
-            with open(xml_out, 'r', encoding='utf-8') as f:
-                content = f.read()
-            # Netegem i forcem el MusicXML manualment
-            content = re.sub(r'<part-list>.*?</part-list>', 
-                r'<part-list><part-group type="start" number="1"><group-symbol>brace</group-symbol><group-barline>yes</group-barline></part-group><score-part id="P1"><part-name></part-name></score-part><score-part id="P2"><part-name></part-name></score-part><part-group type="stop" number="1"/></part-list>', 
-                content, flags=re.DOTALL)
-            st.session_state.xml_data = content
-
-with c2:
+with col2:
     if st.session_state.xml_data:
-        st.download_button("📥 Descarregar MusicXML", st.session_state.xml_data, "blues.musicxml", use_container_width=True)
+        st.download_button("📥 Descarregar", st.session_state.xml_data, "blues.musicxml", use_container_width=True)
 
 if st.session_state.xml_data:
     st.divider()
