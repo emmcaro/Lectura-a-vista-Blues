@@ -9,7 +9,6 @@ from music21 import *
 # --- CONFIGURACIÓ DE L'APP ---
 st.set_page_config(page_title="Generador de Blues", layout="wide")
 
-# CSS per eliminar marges superiors i forçar visibilitat en mode fosc
 st.markdown("""
     <style>
     .block-container {
@@ -25,11 +24,9 @@ st.markdown("""
 
 st.title("🎹 Generador de Lectura de Blues")
 
-# --- ESTAT DE LA SESSIÓ ---
 if 'xml_data' not in st.session_state:
     st.session_state.xml_data = None
 
-# --- VISUALITZADOR OSMD ---
 def mostrar_partitura(xml_bytes):
     xml_str = xml_bytes.decode('utf-8')
     xml_escapat = json.dumps(xml_str)
@@ -37,7 +34,7 @@ def mostrar_partitura(xml_bytes):
     <div id="osmdCanvas" style="background-color: white; padding: 10px; border-radius: 5px;"></div>
     <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
     <script>
-      var osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmdCanvas", {{
+      var osmd = new osmd.OpenSheetMusicDisplay("osmdCanvas", {{
         autoResize: true,
         backend: "svg",
         drawTitle: false,
@@ -56,7 +53,6 @@ def mostrar_partitura(xml_bytes):
     """
     components.html(html_code, height=900, scrolling=True)
 
-# --- FUNCIÓ PRINCIPAL ---
 def generar_blues_inteligent():
     arxiu_motius_nets = 'motius_nets.musicxml'
     
@@ -130,10 +126,8 @@ def generar_blues_inteligent():
         for el in c_clon.getElementsByClass(['Clef', 'TimeSignature', 'KeySignature', 'Barline']):
             c_clon.remove(el)
         
-        # --- SALT DE LÍNIA (SYSTEM BREAK) ---
-        if i in [4, 8]:  # Després del 4t i el 8è compàs
+        if i in [4, 8]:
             c_clon.insert(0, layout.SystemLayout(isNew=True))
-            
         ma_dreta.append(c_clon)
 
     comptador_semi = sum(1 for n in ma_dreta.flatten().notes if n.quarterLength <= 0.25)
@@ -141,9 +135,18 @@ def generar_blues_inteligent():
     estil = random.choice(['sense_7a', 'amb_7a'])
     durada = 1.0 if comptador_semi > 16 else 0.5
     
+    # --- AQUÍ ESTAVA L'ERROR DE SINTAXI CORREGIT ---
     patrons = {
-        'sense_7a': {'C': ['C3 G3', 'C3 A3'], 'F': ['F2 C3', 'F2 D3'], 'G': ['G2 D3', 'G2 E3']},
-        'amb_7a': {'C': ['C3 G3', 'C3 A3', 'C3 B-3', 'C3 A3'], 'F': ['F2 C3', 'F2 D3'], 'F2 E-3', 'F2 D3'], 'G': ['G2 D3', 'G2 E3', 'G2 F3', 'G2 E3']}
+        'sense_7a': {
+            'C': ['C3 G3', 'C3 A3'], 
+            'F': ['F2 C3', 'F2 D3'], 
+            'G': ['G2 D3', 'G2 E3']
+        },
+        'amb_7a': {
+            'C': ['C3 G3', 'C3 A3', 'C3 B-3', 'C3 A3'], 
+            'F': ['F2 C3', 'F2 D3', 'F2 E-3', 'F2 D3'], 
+            'G': ['G2 D3', 'G2 E3', 'G2 F3', 'G2 E3']
+        }
     }
 
     for i, ac in enumerate(acords):
@@ -155,10 +158,8 @@ def generar_blues_inteligent():
                 ch = chord.Chord(n_txt.split(), quarterLength=durada)
                 m_esq.append(ch)
         
-        # Salt de línia també a la mà esquerra per coherència
         if i in [4, 8]:
             m_esq.insert(0, layout.SystemLayout(isNew=True))
-            
         ma_esquerra.append(m_esq)
 
     ma_dreta[0].insert(0, clef.TrebleClef()); ma_dreta[0].insert(0, key.Key('C')); ma_dreta[0].insert(0, meter.TimeSignature('4/4'))
@@ -169,33 +170,23 @@ def generar_blues_inteligent():
 
     mapa_ints = {'C': 'P1', 'G': 'P-4', 'D': 'M2', 'A': 'm-3', 'F': 'P4'}
     ton = random.choice(list(mapa_ints.keys()))
-    
     score_final = partitura.transpose(mapa_ints[ton])
     score_final.metadata = metadata.Metadata(title='', composer='')
-    
     return score_final
 
 # --- UI STREAMLIT ---
 col1, col2 = st.columns([1, 1])
-
 with col1:
     if st.button('🔄 Generar Nou Blues', use_container_width=True):
-        with st.spinner(''):
-            resultat = generar_blues_inteligent()
-            if resultat:
-                xml_path = resultat.write('musicxml')
-                with open(xml_path, 'rb') as f:
-                    st.session_state.xml_data = f.read()
+        res = generar_blues_inteligent()
+        if res:
+            xml_p = res.write('musicxml')
+            with open(xml_p, 'rb') as f:
+                st.session_state.xml_data = f.read()
 
 with col2:
     if st.session_state.xml_data:
-        st.download_button(
-            label="📥 Descarregar MusicXML",
-            data=st.session_state.xml_data,
-            file_name="blues_lectura.musicxml",
-            mime="application/vnd.recordare.musicxml+xml",
-            use_container_width=True
-        )
+        st.download_button("📥 Descarregar MusicXML", data=st.session_state.xml_data, file_name="blues.musicxml", use_container_width=True)
 
 if st.session_state.xml_data:
     st.divider()
