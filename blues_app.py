@@ -15,8 +15,8 @@ st.markdown("""
     .block-container {
         padding-top: 1rem;
         padding-bottom: 0rem;
-        padding-left: 1.5rem;  /* Abans estava a 5rem, ara molt més estret */
-        padding-right: 1.5rem; /* Abans estava a 5rem, ara molt més estret */
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
     }
     .stButton { margin-top: 0px; }
     iframe { background-color: white; border-radius: 5px; }
@@ -102,8 +102,10 @@ def generar_blues_inteligent():
     motius_2_segurs_F = [m for m in motius_2_compassos if len(m) > 1 and not te_mi_natural(m[1])]
 
     partitura = stream.Score()
-    ma_dreta = stream.Part()
-    ma_esquerra = stream.Part()
+    
+    # ASSIGNEM IDs PERQUÈ L'AGRUPAMENT FUNCIONI BÉ AL MUSICXML
+    ma_dreta = stream.Part(id='Part1')
+    ma_esquerra = stream.Part(id='Part2')
 
     compassos_md = [None] * 12
     motiu_pregunta = random.choice(motius_1_segurs_F if motius_1_segurs_F else motius_1_compas)
@@ -189,9 +191,10 @@ def generar_blues_inteligent():
     score_final = partitura.transpose(mapa_ints[ton])
     score_final.metadata = metadata.Metadata(title='', composer='')
     
-    # AGRUPAR EN PIANO DESPRÉS DE LA TRANSPOSICIÓ (Línies de compàs connectades i claudàtor)
-    parts_final = list(score_final.parts)
-    grup_piano = layout.StaffGroup(parts_final, name='', symbol='brace', barTogether=True)
+    # AGRUPAR EN PIANO DESPRÉS DE LA TRANSPOSICIÓ 
+    # (Forcem l'agrupament amb nom i barTogether='yes')
+    parts_final = list(score_final.getElementsByClass(stream.Part))
+    grup_piano = layout.StaffGroup(parts_final, name='Piano', symbol='brace', barTogether='yes')
     score_final.insert(0, grup_piano)
 
     return score_final
