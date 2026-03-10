@@ -9,15 +9,25 @@ from music21 import *
 # --- CONFIGURACIÓ DE L'APP ---
 st.set_page_config(page_title="Generador de Blues", layout="wide")
 
-# Forcem un estil visual perquè la partitura es vegi sempre bé (estil "paper")
+# CSS per eliminar marges superiors i forçar visibilitat en mode fosc
 st.markdown("""
     <style>
+    /* Eliminar el marge superior del contenidor de Streamlit */
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 0rem;
+        padding-left: 5rem;
+        padding-right: 5rem;
+    }
+    /* Estil per als botons */
     .stButton { margin-top: 0px; }
+    /* Forçar fons blanc al visualitzador */
     iframe { background-color: white; border-radius: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🎸 Generador de Lectura de Blues")
+# Títol amb icona de piano i el més amunt possible
+st.title("🎹 Generador de Lectura de Blues")
 
 # --- ESTAT DE LA SESSIÓ ---
 if 'xml_data' not in st.session_state:
@@ -39,7 +49,7 @@ def mostrar_partitura(xml_bytes):
         drawPartNames: false,
         newSystemFromXML: true,
         stretchLastSystemLine: true,
-        coloringMode: 0, // Força el color estàndard (negre sobre blanc)
+        coloringMode: 0,
         defaultColorNotehead: "#000000",
         defaultColorStem: "#000000"
       }});
@@ -159,7 +169,7 @@ def generar_blues_inteligent():
     
     return score_final
 
-# --- UI STREAMLIT (Botons a la mateixa altura) ---
+# --- UI STREAMLIT (Alineada al capdamunt) ---
 col1, col2 = st.columns([1, 1])
 
 with col1:
