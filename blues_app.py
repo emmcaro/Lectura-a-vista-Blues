@@ -9,6 +9,7 @@ from music21 import *
 # --- CONFIGURACIÓ DE L'APP ---
 st.set_page_config(page_title="Generador de Blues", layout="wide")
 
+# CSS per eliminar marges superiors i forçar visibilitat de la partitura
 st.markdown("""
     <style>
     .block-container {
@@ -24,9 +25,11 @@ st.markdown("""
 
 st.title("🎹 Generador de Lectura de Blues")
 
+# --- ESTAT DE LA SESSIÓ ---
 if 'xml_data' not in st.session_state:
     st.session_state.xml_data = None
 
+# --- VISUALITZADOR OSMD CORREGIT ---
 def mostrar_partitura(xml_bytes):
     xml_str = xml_bytes.decode('utf-8')
     xml_escapat = json.dumps(xml_str)
@@ -34,7 +37,7 @@ def mostrar_partitura(xml_bytes):
     <div id="osmdCanvas" style="background-color: white; padding: 10px; border-radius: 5px;"></div>
     <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.8/build/opensheetmusicdisplay.min.js"></script>
     <script>
-      var osmd = new osmd.OpenSheetMusicDisplay("osmdCanvas", {{
+      var osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmdCanvas", {{
         autoResize: true,
         backend: "svg",
         drawTitle: false,
@@ -53,6 +56,7 @@ def mostrar_partitura(xml_bytes):
     """
     components.html(html_code, height=900, scrolling=True)
 
+# --- FUNCIÓ PRINCIPAL ---
 def generar_blues_inteligent():
     arxiu_motius_nets = 'motius_nets.musicxml'
     
@@ -126,6 +130,7 @@ def generar_blues_inteligent():
         for el in c_clon.getElementsByClass(['Clef', 'TimeSignature', 'KeySignature', 'Barline']):
             c_clon.remove(el)
         
+        # Inserir salt de línia al principi del 5è i 9è compàs
         if i in [4, 8]:
             c_clon.insert(0, layout.SystemLayout(isNew=True))
         ma_dreta.append(c_clon)
@@ -135,7 +140,6 @@ def generar_blues_inteligent():
     estil = random.choice(['sense_7a', 'amb_7a'])
     durada = 1.0 if comptador_semi > 16 else 0.5
     
-    # --- AQUÍ ESTAVA L'ERROR DE SINTAXI CORREGIT ---
     patrons = {
         'sense_7a': {
             'C': ['C3 G3', 'C3 A3'], 
@@ -158,6 +162,7 @@ def generar_blues_inteligent():
                 ch = chord.Chord(n_txt.split(), quarterLength=durada)
                 m_esq.append(ch)
         
+        # Inserir salt de línia també a la mà esquerra
         if i in [4, 8]:
             m_esq.insert(0, layout.SystemLayout(isNew=True))
         ma_esquerra.append(m_esq)
